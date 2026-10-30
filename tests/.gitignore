@@ -1,0 +1,19 @@
+# Python virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Audio datasets
+data/raw/
+data/processed/
+
+# AI model files
+*.pt
+*.pth
+*.ckpt
+
+# VS Code settings
+.vscode/

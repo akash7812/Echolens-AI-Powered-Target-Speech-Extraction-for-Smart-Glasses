@@ -1,0 +1,16 @@
+# Python environment
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Audio datasets
+data/raw/
+data/processed/
+
+# Model files
+*.pt
+*.pth
+*.ckpt
