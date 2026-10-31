@@ -86,3 +86,93 @@ def test_invalid_dataset_index(sample_audio_files):
 
     with pytest.raises(IndexError):
         dataset[1]
+
+
+# --------------------------------------------------
+# NEW TESTS FOR MULTIPLE TRAINING SAMPLES
+# --------------------------------------------------
+
+
+@pytest.fixture
+def multiple_audio_samples(sample_audio_files):
+    """Create four temporary mixture-target pairs."""
+
+    samples_dir = (
+        sample_audio_files
+        / "data"
+        / "processed"
+        / "training_samples"
+    )
+
+    samples_dir.mkdir(parents=True)
+
+    sample_rate = 16000
+    duration_samples = sample_rate * 4
+
+    for index in range(1, 5):
+        mixture = np.full(
+            duration_samples,
+            0.1 * index,
+            dtype=np.float32,
+        )
+
+        target = np.full(
+            duration_samples,
+            0.05 * index,
+            dtype=np.float32,
+        )
+
+        sf.write(
+            samples_dir / f"mixture_{index:02d}.wav",
+            mixture,
+            sample_rate,
+        )
+
+        sf.write(
+            samples_dir / f"target_{index:02d}.wav",
+            target,
+            sample_rate,
+        )
+
+    return sample_audio_files
+
+
+def test_multiple_samples_load(multiple_audio_samples):
+    """Check that all four samples are detected."""
+
+    dataset = TargetSpeakerDataset(
+        multiple_audio_samples,
+        use_training_samples=True,
+    )
+
+    assert len(dataset) == 4
+
+    for index in range(4):
+        sample = dataset[index]
+
+        assert sample["sample_rate"] == 16000
+        assert len(sample["mixture"]) == 64000
+        assert len(sample["target"]) == 64000
+        assert len(sample["enrollment"]) == 8000
+
+
+def test_multiple_samples_are_distinct(multiple_audio_samples):
+    """Check that different indexes load different recordings."""
+
+    dataset = TargetSpeakerDataset(
+        multiple_audio_samples,
+        use_training_samples=True,
+    )
+
+    first_sample = dataset[0]
+    second_sample = dataset[1]
+
+    assert not np.array_equal(
+        first_sample["mixture"],
+        second_sample["mixture"],
+    )
+
+    assert not np.array_equal(
+        first_sample["target"],
+        second_sample["target"],
+    )
