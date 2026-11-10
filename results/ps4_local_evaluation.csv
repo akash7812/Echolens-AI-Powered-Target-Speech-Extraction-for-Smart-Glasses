@@ -1,0 +1,2 @@
+Model,Experiment,Sample_Rate,Mixture_SI_SDR_dB,Extracted_SI_SDR_dB,SI_SDR_Improvement_dB,Listening_Observation
+PS4,Synthetic two-speaker mixture,16000,-13.874,1.208,15.082,Target speaker extraction confirmed by listening

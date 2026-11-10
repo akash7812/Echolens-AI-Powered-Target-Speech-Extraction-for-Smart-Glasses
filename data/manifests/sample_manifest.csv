@@ -1,0 +1,2 @@
+audio_path,sample_rate,channels,duration
+data/raw/sample.wav,16000,2,5.0

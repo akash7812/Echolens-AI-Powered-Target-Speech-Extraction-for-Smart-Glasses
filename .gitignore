@@ -1,0 +1,18 @@
+
+# Python virtual environments
+.venv/
+.venv_anaconda_backup/
+
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Audio datasets and generated audio
+data/raw/
+data/processed/
+
+# Model checkpoints
+*.pt
+*.pth
+*.ckpt
