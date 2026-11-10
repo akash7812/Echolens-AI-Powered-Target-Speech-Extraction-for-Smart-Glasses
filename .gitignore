@@ -1,16 +1,18 @@
-# Python environment
+
+# Python virtual environments
 .venv/
+.venv_anaconda_backup/
 
 # Python cache
 __pycache__/
-*.pyc
+*.py[cod]
 .pytest_cache/
 
-# Audio datasets
+# Audio datasets and generated audio
 data/raw/
 data/processed/
 
-# Model files
+# Model checkpoints
 *.pt
 *.pth
 *.ckpt
