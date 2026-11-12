@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "echolens"
+version = "1.0.0"
+description = "AI-Powered Target Speech Extraction for Smart Glasses (CHiME-10 Task 3)"
+readme = "README.md"
+requires-python = ">=3.10"
+
+[project.scripts]
+echolens = "echolens.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
