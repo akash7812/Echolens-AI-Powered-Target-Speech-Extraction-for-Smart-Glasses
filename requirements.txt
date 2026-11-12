@@ -1,10 +1,6 @@
 numpy
-librosa
 soundfile
 scipy
-matplotlib
-pandas
-pytest
 scikit-learn
 torch
 torchaudio

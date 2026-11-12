@@ -1,5 +1,8 @@
 from pathlib import Path
-import pandas as pd
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
 
 from echolens.data.audio_loader import load_audio, get_audio_info
 

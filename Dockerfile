@@ -1,35 +1,34 @@
-# Echolens — Production Dockerfile
-# Optimized for Hugging Face Spaces, Render, and Cloud Containers
+# Echolens — Production Ultra-Lightweight Dockerfile
+# Optimized for Render Free Tier (Build storage < 400 MB)
 
 FROM python:3.12-slim
 
-# Install system dependencies (libsndfile for audio I/O)
+# Install only the absolute minimal system library (libsndfile1) and curl for health check
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libsndfile1 \
-    ffmpeg \
     curl \
-    git \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 WORKDIR /app
 
 # Copy dependency manifests
 COPY requirements.txt pyproject.toml setup.py /app/
 
-# Install PyTorch CPU-only wheels first (fast, ~150MB instead of 3GB CUDA)
-RUN pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+# Install lightweight PyTorch CPU wheels + minimal requirements, then clean caches
+RUN pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir -r requirements.txt \
+    && rm -rf /root/.cache/pip /tmp/*
 
-# Install remaining python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy source code, documentation, and model checkpoint
+# Copy application source, data, and models
 COPY src/ /app/src/
 COPY data/ /app/data/
 COPY docs/ /app/docs/
 COPY models/ /app/models/
 
 # Install package in editable mode
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir -e . \
+    && find /usr/local -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 
 # Expose standard application port
 EXPOSE 8000
@@ -44,7 +43,7 @@ ENV OPENBLAS_NUM_THREADS=1
 ENV VECLIB_MAXIMUM_THREADS=1
 ENV NUMEXPR_NUM_THREADS=1
 
-# Health check endpoint (fast /health check with generous start period for model pre-load)
+# Health check endpoint
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=5 \
     CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 

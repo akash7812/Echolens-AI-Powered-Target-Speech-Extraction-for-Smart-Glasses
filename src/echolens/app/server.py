@@ -1122,23 +1122,6 @@ async function runEnhancementTrack1() {
   }
 }
 
-      const metricsBox = document.getElementById('t1-metrics-container');
-      metricsBox.innerHTML = '';
-      metricsBox.innerHTML += `<div class="metric-tag">Noise Suppression: +${data.noise_reduction_db.toFixed(1)} dB</div>`;
-      if (data.metrics && data.metrics.si_sdr_improvement) {
-        metricsBox.innerHTML += `<div class="metric-tag">SI-SDR Improvement: +${data.metrics.si_sdr_improvement.toFixed(2)} dB</div>`;
-      }
-      metricsBox.innerHTML += `<div class="metric-tag">Inference Latency: ${data.execution_time.toFixed(2)}s</div>`;
-    } else {
-      alert(data.error || 'Enhancement failed');
-    }
-  } catch (err) {
-    btn.disabled = false;
-    btn.innerText = '✨ Enhance My Voice';
-    alert('Enhancement error: ' + err.message);
-  }
-}
-
 // =============================================================================
 // RECORDING WITH NATIVE PCM CONVERSION
 // =============================================================================
@@ -1316,12 +1299,15 @@ class EcholensAppServer:
         self.preview_generator = SpeakerPreviewGenerator()
         self.selection_manager = SpeakerSelectionManager()
 
-        # Pre-load PS4 model into memory to eliminate first-request latency / timeouts
-        try:
-            self.track2_pipeline._ensure_model_loaded()
-            print(f"[Echolens] PS4 model pre-loaded into memory from {chosen_ckpt}")
-        except Exception as e:
-            print(f"[Echolens] Model pre-load note: {e}")
+        # Pre-load PS4 model in background daemon thread so HTTP server binds and serves instantly!
+        import threading
+        def _warmup():
+            try:
+                self.track2_pipeline._ensure_model_loaded()
+                print(f"[Echolens] PS4 model pre-loaded into memory from {chosen_ckpt}", flush=True)
+            except Exception as e:
+                print(f"[Echolens] Model pre-load note: {e}", flush=True)
+        threading.Thread(target=_warmup, daemon=True).start()
 
         self.current_diarization = None
         self.current_mixture_audio = None
