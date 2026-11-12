@@ -134,4 +134,4 @@ pytest -v -p no:cacheprovider
 ## 👥 Contributors & Responsibilities
 - **Member 1**: Audio pipeline, data loading, preprocessing, and dataset manifests.
 - **Member 2**: PS4 model architecture, checkpoint training, and baseline evaluation.
-- **Member 3 (Antigravity)**: CHiME-10 Track 1 & Track 2 end-to-end integration, speaker diarization, preview generator, explicit selection UI, enrollment builder, web dashboard, and CLI interface.
+- **Member 3 **: CHiME-10 Track 1 & Track 2 end-to-end integration, speaker diarization, preview generator, explicit selection UI, enrollment builder, web dashboard, and CLI interface.
