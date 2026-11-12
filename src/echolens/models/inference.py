@@ -706,6 +706,12 @@ def load_checkpoint(path: str, model: nn.Module, device: torch.device):
     else:
         state_dict = ckpt
 
+    # Convert FP16 weights to float32 on CPU if needed
+    state_dict = {
+        k: (v.float() if isinstance(v, torch.Tensor) and v.is_floating_point() and device.type == "cpu" else v)
+        for k, v in state_dict.items()
+    }
+
     missing, unexpected = model.load_state_dict(state_dict, strict=False)
     if missing:
         print(f"[PS4]  WARNING: missing keys ({len(missing)}): {missing[:5]}...")

@@ -5,3 +5,6 @@ scipy
 matplotlib
 pandas
 pytest
+scikit-learn
+torch
+torchaudio

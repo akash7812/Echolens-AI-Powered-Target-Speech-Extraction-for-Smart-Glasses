@@ -9,6 +9,7 @@ Unified interface for CHiME-10 Task 3:
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Optional, List

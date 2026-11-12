@@ -4,8 +4,12 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-from src.echolens.models.ps4_extractor import PS4Extractor
-from src.echolens.models.evaluation import evaluate_sample
+try:
+    from echolens.models.ps4_extractor import PS4Extractor
+    from echolens.models.evaluation import evaluate_sample
+except ImportError:
+    from src.echolens.models.ps4_extractor import PS4Extractor
+    from src.echolens.models.evaluation import evaluate_sample
 
 
 class EcholensPipeline:

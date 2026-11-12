@@ -13,3 +13,5 @@ services:
         value: 10000
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: ECHOLENS_CHECKPOINT_PATH
+        value: /app/models/checkpoint_finetuned.pt
