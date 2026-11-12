@@ -20,6 +20,14 @@ import uuid
 
 import numpy as np
 import soundfile as sf
+import torch
+
+# Optimize PyTorch CPU execution for cloud containers (prevent thread contention)
+try:
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
+except Exception:
+    pass
 
 from echolens.audio.ingestion import ingest_audio, IngestionResult
 from echolens.diarization import (
@@ -697,6 +705,24 @@ function switchTab(tab) {
   document.getElementById(`panel-${tab}`).classList.add('active');
 }
 
+async function safeFetchJson(url, options = {}) {
+  const res = await fetch(url, options);
+  if (!res.ok) {
+    let errMsg = `Server returned status ${res.status}`;
+    try {
+      const errJson = await res.json();
+      if (errJson && errJson.error) errMsg = errJson.error;
+    } catch(e) {
+      try {
+        const text = await res.text();
+        if (text) errMsg = text.slice(0, 150);
+      } catch(e2) {}
+    }
+    throw new Error(errMsg);
+  }
+  return await res.json();
+}
+
 async function switchModel(modelType) {
   currentModelType = modelType;
   document.getElementById('btn-model-ft').classList.toggle('active', modelType === 'finetuned');
@@ -784,30 +810,38 @@ async function uploadMixtureTrack2(file) {
   }
   const formData = new FormData();
   formData.append('audio', fileToUpload);
-  const res = await fetch('/api/ingest', { method: 'POST', body: formData });
-  const data = await res.json();
-  if (data.success) {
-    t2MixturePath = data.saved_path;
-    document.getElementById('t2-audio-status').innerText = `${data.duration.toFixed(1)}s (16 kHz Mono)`;
-    const p = document.getElementById('t2-mixture-player');
-    p.src = `/audio/${encodeURIComponent(data.filename)}`;
-    p.style.display = 'block';
-    document.getElementById('t2-diarize-btn').disabled = false;
-  } else {
-    alert(data.error);
+  try {
+    const data = await safeFetchJson('/api/ingest', { method: 'POST', body: formData });
+    if (data.success) {
+      t2MixturePath = data.saved_path;
+      document.getElementById('t2-audio-status').innerText = `${data.duration.toFixed(1)}s (16 kHz Mono)`;
+      const p = document.getElementById('t2-mixture-player');
+      p.src = `/audio/${encodeURIComponent(data.filename)}`;
+      p.style.display = 'block';
+      document.getElementById('t2-diarize-btn').disabled = false;
+    } else {
+      alert(data.error);
+    }
+  } catch(err) {
+    alert('Upload error: ' + err.message);
   }
 }
 
 async function loadSampleTrack2() {
-  const res = await fetch('/api/track2/sample', { method: 'POST' });
-  const data = await res.json();
-  if (data.success) {
-    t2MixturePath = data.saved_path;
-    document.getElementById('t2-audio-status').innerText = `${data.duration.toFixed(1)}s (Sample Mixture 01)`;
-    const p = document.getElementById('t2-mixture-player');
-    p.src = `/audio/${encodeURIComponent(data.filename)}`;
-    p.style.display = 'block';
-    document.getElementById('t2-diarize-btn').disabled = false;
+  try {
+    const data = await safeFetchJson('/api/track2/sample', { method: 'POST' });
+    if (data.success) {
+      t2MixturePath = data.saved_path;
+      document.getElementById('t2-audio-status').innerText = `${data.duration.toFixed(1)}s (Sample Mixture 01)`;
+      const p = document.getElementById('t2-mixture-player');
+      p.src = `/audio/${encodeURIComponent(data.filename)}`;
+      p.style.display = 'block';
+      document.getElementById('t2-diarize-btn').disabled = false;
+    } else {
+      alert(data.error || 'Failed to load sample');
+    }
+  } catch(err) {
+    alert('Sample loading error: ' + err.message);
   }
 }
 
@@ -820,12 +854,11 @@ async function runDiarizationTrack2() {
   statusP.innerText = 'Analyzing audio with spectral AHC diarization...';
 
   try {
-    const res = await fetch('/api/track2/diarize', {
+    const data = await safeFetchJson('/api/track2/diarize', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mixture_path: t2MixturePath })
     });
-    const data = await res.json();
     btn.disabled = false;
     btn.innerText = '🔍 Re-diarize';
 
@@ -910,7 +943,7 @@ async function runExtractionTrack2() {
   btn.innerText = 'Extracting via PS4 (BSRNN)...';
 
   try {
-    const res = await fetch('/api/track2/extract', {
+    const data = await safeFetchJson('/api/track2/extract', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -919,7 +952,6 @@ async function runExtractionTrack2() {
         model_type: currentModelType
       })
     });
-    const data = await res.json();
     btn.disabled = false;
     btn.innerText = '🎯 Extract Target Speaker';
 
@@ -946,7 +978,7 @@ async function runExtractionTrack2() {
   } catch (err) {
     btn.disabled = false;
     btn.innerText = '🎯 Extract Target Speaker';
-    alert('Extraction error: ' + err.message);
+    alert('Extraction notice: ' + err.message);
   }
 }
 
@@ -964,30 +996,36 @@ async function uploadWearerRef(file) {
   }
   const formData = new FormData();
   formData.append('audio', fileToUpload);
-  const res = await fetch('/api/ingest', { method: 'POST', body: formData });
-  const data = await res.json();
-  if (data.success) {
-    t1RefPath = data.saved_path;
-    document.getElementById('t1-ref-status').innerText = `${data.duration.toFixed(1)}s (Registered Profile)`;
-    const p = document.getElementById('t1-ref-player');
-    p.src = `/audio/${encodeURIComponent(data.filename)}`;
-    p.style.display = 'block';
-    checkTrack1Ready();
-  } else {
-    alert(data.error);
+  try {
+    const data = await safeFetchJson('/api/ingest', { method: 'POST', body: formData });
+    if (data.success) {
+      t1RefPath = data.saved_path;
+      document.getElementById('t1-ref-status').innerText = `${data.duration.toFixed(1)}s (Registered Profile)`;
+      const p = document.getElementById('t1-ref-player');
+      p.src = `/audio/${encodeURIComponent(data.filename)}`;
+      p.style.display = 'block';
+      checkTrack1Ready();
+    } else {
+      alert(data.error);
+    }
+  } catch(err) {
+    alert('Upload error: ' + err.message);
   }
 }
 
 async function loadSampleWearerRef() {
-  const res = await fetch('/api/track1/sample_ref', { method: 'POST' });
-  const data = await res.json();
-  if (data.success) {
-    t1RefPath = data.saved_path;
-    document.getElementById('t1-ref-status').innerText = `${data.duration.toFixed(1)}s (Speaker A Profile)`;
-    const p = document.getElementById('t1-ref-player');
-    p.src = `/audio/${encodeURIComponent(data.filename)}`;
-    p.style.display = 'block';
-    checkTrack1Ready();
+  try {
+    const data = await safeFetchJson('/api/track1/sample_ref', { method: 'POST' });
+    if (data.success) {
+      t1RefPath = data.saved_path;
+      document.getElementById('t1-ref-status').innerText = `${data.duration.toFixed(1)}s (Speaker A Profile)`;
+      const p = document.getElementById('t1-ref-player');
+      p.src = `/audio/${encodeURIComponent(data.filename)}`;
+      p.style.display = 'block';
+      checkTrack1Ready();
+    }
+  } catch(err) {
+    alert('Sample reference error: ' + err.message);
   }
 }
 
@@ -1002,30 +1040,36 @@ async function uploadGlassesAudio(file) {
   }
   const formData = new FormData();
   formData.append('audio', fileToUpload);
-  const res = await fetch('/api/ingest', { method: 'POST', body: formData });
-  const data = await res.json();
-  if (data.success) {
-    t1MixPath = data.saved_path;
-    document.getElementById('t1-mix-status').innerText = `${data.duration.toFixed(1)}s (Glasses Recording)`;
-    const p = document.getElementById('t1-mix-player');
-    p.src = `/audio/${encodeURIComponent(data.filename)}`;
-    p.style.display = 'block';
-    checkTrack1Ready();
-  } else {
-    alert(data.error);
+  try {
+    const data = await safeFetchJson('/api/ingest', { method: 'POST', body: formData });
+    if (data.success) {
+      t1MixPath = data.saved_path;
+      document.getElementById('t1-mix-status').innerText = `${data.duration.toFixed(1)}s (Glasses Recording)`;
+      const p = document.getElementById('t1-mix-player');
+      p.src = `/audio/${encodeURIComponent(data.filename)}`;
+      p.style.display = 'block';
+      checkTrack1Ready();
+    } else {
+      alert(data.error);
+    }
+  } catch(err) {
+    alert('Upload error: ' + err.message);
   }
 }
 
 async function loadSampleGlassesMix() {
-  const res = await fetch('/api/track1/sample_mix', { method: 'POST' });
-  const data = await res.json();
-  if (data.success) {
-    t1MixPath = data.saved_path;
-    document.getElementById('t1-mix-status').innerText = `${data.duration.toFixed(1)}s (Sample Mixture 01)`;
-    const p = document.getElementById('t1-mix-player');
-    p.src = `/audio/${encodeURIComponent(data.filename)}`;
-    p.style.display = 'block';
-    checkTrack1Ready();
+  try {
+    const data = await safeFetchJson('/api/track1/sample_mix', { method: 'POST' });
+    if (data.success) {
+      t1MixPath = data.saved_path;
+      document.getElementById('t1-mix-status').innerText = `${data.duration.toFixed(1)}s (Sample Mixture 01)`;
+      const p = document.getElementById('t1-mix-player');
+      p.src = `/audio/${encodeURIComponent(data.filename)}`;
+      p.style.display = 'block';
+      checkTrack1Ready();
+    }
+  } catch(err) {
+    alert('Sample mixture error: ' + err.message);
   }
 }
 
@@ -1041,7 +1085,7 @@ async function runEnhancementTrack1() {
   btn.innerText = 'Enhancing Wearer Speech...';
 
   try {
-    const res = await fetch('/api/track1/enhance', {
+    const data = await safeFetchJson('/api/track1/enhance', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1049,7 +1093,6 @@ async function runEnhancementTrack1() {
         reference_path: t1RefPath,
       })
     });
-    const data = await res.json();
     btn.disabled = false;
     btn.innerText = '✨ Enhance My Voice';
 
@@ -1061,6 +1104,23 @@ async function runEnhancementTrack1() {
       enhP.src = `/audio/${encodeURIComponent(data.enhanced_filename)}`;
 
       document.getElementById('t1-download-link').href = `/audio/${encodeURIComponent(data.enhanced_filename)}`;
+
+      const metricsBox = document.getElementById('t1-metrics-container');
+      metricsBox.innerHTML = '';
+      metricsBox.innerHTML += `<div class="metric-tag">Noise Suppression: +${data.noise_reduction_db.toFixed(1)} dB</div>`;
+      if (data.metrics && data.metrics.si_sdr_improvement) {
+        metricsBox.innerHTML += `<div class="metric-tag">SI-SDR Improvement: +${data.metrics.si_sdr_improvement.toFixed(2)} dB</div>`;
+      }
+      metricsBox.innerHTML += `<div class="metric-tag">Inference Latency: ${data.execution_time.toFixed(2)}s</div>`;
+    } else {
+      alert(data.error || 'Enhancement failed');
+    }
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerText = '✨ Enhance My Voice';
+    alert('Enhancement error: ' + err.message);
+  }
+}
 
       const metricsBox = document.getElementById('t1-metrics-container');
       metricsBox.innerHTML = '';
@@ -1221,17 +1281,22 @@ class EcholensAppServer:
         self.audio_cache_dir = self.storage_dir / "audio_cache"
         self.audio_cache_dir.mkdir(parents=True, exist_ok=True)
 
-        # Checkpoints (Multi-platform discovery for Windows, Linux, Docker, Render)
+        # Multi-platform data and model file discovery (Windows, Linux, Docker, Render)
         def find_ckpt(name: str, win_fallback: str) -> Path:
             import os
-            for p in [
-                os.environ.get("ECHOLENS_CHECKPOINT_PATH"),
+            env_path = os.environ.get("ECHOLENS_CHECKPOINT_PATH")
+            candidates = []
+            if env_path and name in os.path.basename(env_path):
+                candidates.append(Path(env_path))
+            candidates.extend([
                 Path("models") / name,
                 Path("/app/models") / name,
+                Path(__file__).resolve().parents[3] / "models" / name,
                 Path(win_fallback),
-            ]:
-                if p and Path(p).is_file():
-                    return Path(p)
+            ])
+            for p in candidates:
+                if p and p.is_file():
+                    return p
             return Path(win_fallback)
 
         self.finetuned_path = find_ckpt("checkpoint_finetuned.pt", r"C:\Echolens_Models\checkpoint_finetuned.pt")
@@ -1251,6 +1316,13 @@ class EcholensAppServer:
         self.preview_generator = SpeakerPreviewGenerator()
         self.selection_manager = SpeakerSelectionManager()
 
+        # Pre-load PS4 model into memory to eliminate first-request latency / timeouts
+        try:
+            self.track2_pipeline._ensure_model_loaded()
+            print(f"[Echolens] PS4 model pre-loaded into memory from {chosen_ckpt}")
+        except Exception as e:
+            print(f"[Echolens] Model pre-load note: {e}")
+
         self.current_diarization = None
         self.current_mixture_audio = None
         self.current_model_type = "finetuned" if "finetuned" in str(chosen_ckpt) else "baseline"
@@ -1263,6 +1335,21 @@ class EcholensAppServer:
         elif self.finetuned_path.is_file():
             self.track2_pipeline = Track2Pipeline(checkpoint_path=str(self.finetuned_path), device="cpu")
             self.current_model_type = "finetuned"
+
+
+def find_data_file(rel_path: str) -> Optional[Path]:
+    """Resolve sample and reference data files across local Windows, repo root, and Docker /app paths."""
+    clean_rel = rel_path.replace("\\", "/")
+    candidates = [
+        Path(clean_rel),
+        Path(__file__).resolve().parents[3] / clean_rel,
+        Path("/app") / clean_rel,
+        Path(r"C:\Echolens") / clean_rel,
+    ]
+    for c in candidates:
+        if c.is_file():
+            return c
+    return None
 
 
 def make_request_handler(app_state: EcholensAppServer):
@@ -1278,8 +1365,21 @@ def make_request_handler(app_state: EcholensAppServer):
             self.end_headers()
             self.wfile.write(resp)
 
+        def do_HEAD(self):
+            parsed = urllib.parse.urlparse(self.path)
+            self.send_response(200)
+            if parsed.path in ["/", "/index.html"]:
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+            elif parsed.path == "/health":
+                self.send_header("Content-Type", "application/json")
+            self.end_headers()
+
         def do_GET(self):
             parsed = urllib.parse.urlparse(self.path)
+
+            if parsed.path == "/health":
+                self._send_json(200, {"status": "ok", "app": "echolens"})
+                return
 
             if parsed.path == "/" or parsed.path == "/index.html":
                 page = HTML_PAGE.encode("utf-8")
@@ -1367,8 +1467,8 @@ def make_request_handler(app_state: EcholensAppServer):
 
             # 2. Track 2 Sample Mixture
             if parsed.path == "/api/track2/sample":
-                sample_p = Path(r"C:\Echolens\data\processed\training_samples\mixture_01.wav")
-                if sample_p.is_file():
+                sample_p = find_data_file("data/processed/training_samples/mixture_01.wav")
+                if sample_p and sample_p.is_file():
                     audio, sr = sf.read(str(sample_p), dtype="float32")
                     filename = f"sample_t2_{uuid.uuid4().hex[:8]}.wav"
                     dest = app_state.audio_cache_dir / filename
@@ -1381,7 +1481,7 @@ def make_request_handler(app_state: EcholensAppServer):
                         "duration": round(len(audio) / sr, 2),
                     })
                 else:
-                    self._send_json(404, {"success": False, "error": "Sample file not found"})
+                    self._send_json(404, {"success": False, "error": "Sample mixture file not found on server."})
                 return
 
             # 3. Track 2 Diarization & Previews
@@ -1431,16 +1531,21 @@ def make_request_handler(app_state: EcholensAppServer):
                     out_fname = f"extracted_ps4_{uuid.uuid4().hex[:8]}.wav"
                     out_path = app_state.audio_cache_dir / out_fname
 
-                    target_p = Path(r"C:\Echolens\data\processed\training_samples\target_01.wav")
+                    target_p = find_data_file("data/processed/training_samples/target_01.wav")
                     clean_target = None
-                    if target_p.is_file() and selected_speaker == "Speaker A":
+                    if target_p and target_p.is_file() and selected_speaker == "Speaker A":
                         t_audio, _ = sf.read(str(target_p), dtype="float32")
                         if len(t_audio) == len(audio):
                             clean_target = t_audio
 
+                    diar_res = app_state.current_diarization
+                    if diar_res is None:
+                        diar_res = app_state.diarizer.diarize(audio, sample_rate=sr)
+                        app_state.current_diarization = diar_res
+
                     res = app_state.track2_pipeline.extract(
                         mixture=audio,
-                        diarization_result=app_state.current_diarization,
+                        diarization_result=diar_res,
                         selected_speaker=selected_speaker,
                         output_path=out_path,
                         clean_target=clean_target,
@@ -1459,8 +1564,8 @@ def make_request_handler(app_state: EcholensAppServer):
 
             # 5. Track 1 Sample Endpoints
             if parsed.path == "/api/track1/sample_ref":
-                ref_p = Path(r"C:\Echolens\data\raw\speaker_a_new_enrollment.wav")
-                if ref_p.is_file():
+                ref_p = find_data_file("data/raw/speaker_a_new_enrollment.wav")
+                if ref_p and ref_p.is_file():
                     audio, sr = sf.read(str(ref_p), dtype="float32")
                     fname = f"sample_ref_{uuid.uuid4().hex[:8]}.wav"
                     dest = app_state.audio_cache_dir / fname
@@ -1472,12 +1577,12 @@ def make_request_handler(app_state: EcholensAppServer):
                         "duration": round(len(audio) / sr, 2),
                     })
                 else:
-                    self._send_json(404, {"success": False, "error": "Sample reference file not found"})
+                    self._send_json(404, {"success": False, "error": "Sample reference file not found on server."})
                 return
 
             if parsed.path == "/api/track1/sample_mix":
-                mix_p = Path(r"C:\Echolens\data\processed\training_samples\mixture_01.wav")
-                if mix_p.is_file():
+                mix_p = find_data_file("data/processed/training_samples/mixture_01.wav")
+                if mix_p and mix_p.is_file():
                     audio, sr = sf.read(str(mix_p), dtype="float32")
                     fname = f"sample_mix_{uuid.uuid4().hex[:8]}.wav"
                     dest = app_state.audio_cache_dir / fname
@@ -1489,7 +1594,7 @@ def make_request_handler(app_state: EcholensAppServer):
                         "duration": round(len(audio) / sr, 2),
                     })
                 else:
-                    self._send_json(404, {"success": False, "error": "Sample mixture file not found"})
+                    self._send_json(404, {"success": False, "error": "Sample mixture file not found on server."})
                 return
 
             # 6. Track 1 Enhancement
@@ -1503,9 +1608,9 @@ def make_request_handler(app_state: EcholensAppServer):
                     mix_audio, sr = sf.read(mix_path, dtype="float32")
                     ref_audio, _ = sf.read(ref_path, dtype="float32")
 
-                    target_p = Path(r"C:\Echolens\data\processed\training_samples\target_01.wav")
+                    target_p = find_data_file("data/processed/training_samples/target_01.wav")
                     clean_target = None
-                    if target_p.is_file():
+                    if target_p and target_p.is_file():
                         t_audio, _ = sf.read(str(target_p), dtype="float32")
                         if len(t_audio) == len(mix_audio):
                             clean_target = t_audio
@@ -1543,7 +1648,7 @@ def create_server(
     storage_dir: Optional[Path] = None,
     checkpoint_path: Optional[str] = None,
 ) -> http.server.HTTPServer:
-    """Create and return an instantiated HTTPServer bound to the requested host and port."""
+    """Create and return an instantiated ThreadingHTTPServer bound to the requested host and port."""
     app_state = EcholensAppServer(storage_dir=storage_dir, checkpoint_path=checkpoint_path)
     handler = make_request_handler(app_state)
-    return http.server.HTTPServer((host, port), handler)
+    return http.server.ThreadingHTTPServer((host, port), handler)
