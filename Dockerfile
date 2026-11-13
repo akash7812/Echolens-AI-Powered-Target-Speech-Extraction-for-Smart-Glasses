@@ -16,8 +16,11 @@ WORKDIR /app
 COPY requirements.txt pyproject.toml setup.py /app/
 
 # Install lightweight PyTorch CPU wheels + minimal requirements, then clean caches
-RUN pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cpu \
-    && pip install --no-cache-dir -r requirements.txt \
+RUN python -m pip install --no-cache-dir \
+    --index-url https://download.pytorch.org/whl/cpu \
+    torch torchaudio \
+    && python -m pip install --no-cache-dir -r requirements.txt \
+    && python -c "import torch, torchaudio; print('PyTorch:', torch.__version__); print('TorchAudio:', torchaudio.__version__)" \
     && rm -rf /root/.cache/pip /tmp/*
 
 # Copy application source, data, and models
