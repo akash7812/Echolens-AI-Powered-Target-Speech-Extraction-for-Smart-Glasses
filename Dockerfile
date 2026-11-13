@@ -30,7 +30,7 @@ COPY docs/ /app/docs/
 COPY models/ /app/models/
 
 # Install package in editable mode
-RUN pip install --no-cache-dir -e . \
+RUN python -m pip install --no-cache-dir --no-deps -e . \
     && find /usr/local -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 
 # Expose standard application port
